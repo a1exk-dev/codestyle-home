@@ -156,6 +156,15 @@ test_manifest_blank_lines_and_comments_are_ignored() {
 	expect_output "cloned.*alpha"
 }
 
+test_last_manifest_line_without_newline_is_cloned() {
+	make_remote alpha
+	make_home
+	printf 'alpha %s' "$tmp/remotes/alpha.git" >"$home/repos.txt"
+	run_clone
+	expect_status 0
+	expect_file alpha one
+}
+
 test_failing_clone_exits_non_zero_after_the_other_repos() {
 	make_remote beta
 	make_home

@@ -38,7 +38,7 @@ sync() {
 
 summary=()
 status=0
-while read -r line; do
+while read -r line || [[ -n $line ]]; do
 	read -r name url _ <<<"${line%%#*}"
 	[[ -n $name ]] || continue
 	sync "$home/$name" "$url"
