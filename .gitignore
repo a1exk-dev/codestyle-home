@@ -1,0 +1,3 @@
+# The clones listed in repos.txt.
+/codestyle.nvim/
+/codestyle-*.nvim/
