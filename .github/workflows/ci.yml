@@ -16,7 +16,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: tests/clone_test.sh
+      - name: Run each tests/*_test.sh, then fail if one failed
+        run: |
+          status=0
+          for test in tests/*_test.sh; do "$test" || status=1; done
+          exit "$status"
 
   typos:
     name: typos
