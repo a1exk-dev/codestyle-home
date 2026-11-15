@@ -26,7 +26,7 @@ Before you change the Language Plugin template, run:
 scripts/drift.sh
 ```
 
-For each Language Plugin clone, it lists the boilerplate files that differ from the template clone: changed, missing, or extra. `boilerplate.txt` lists the boilerplate files. Add `--diff` to show each difference, and name plugins to report only those. Plugins may differ on purpose, so the report changes no file and exits non-zero only when the template is not cloned.
+For each Language Plugin clone, it lists the boilerplate files that differ from the template clone: changed, missing, or extra. `boilerplate.txt` lists the boilerplate files. Add `--diff` to show each difference, and name plugins to report only those. Plugins may differ on purpose, so the report changes no file and does not fail on a difference. It fails only when the template is not cloned, `boilerplate.txt` lists no file, or an argument is wrong.
 
 ## Agent setup
 

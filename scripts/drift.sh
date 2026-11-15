@@ -6,8 +6,9 @@
 # from the template clone: changed, missing or extra. The boilerplate
 # files are those that boilerplate.txt lists. With --diff, it also shows
 # each difference. Plugins may differ on purpose, so the report never
-# fails on a difference and changes no file. It exits non-zero only when
-# the template is not cloned or the arguments are wrong.
+# fails on a difference and changes no file. It exits 1 when the template
+# is not cloned or boilerplate.txt lists no file, and 2 on a wrong
+# argument.
 set -euo pipefail
 
 home="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -30,17 +31,27 @@ done
 
 # The boilerplate paths, one per line; a path that ends in / covers each
 # file under it.
-mapfile -t paths < <(sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//; /^$/d' "$home/boilerplate.txt")
+paths=()
+while read -r line || [[ -n $line ]]; do
+	read -r path _ <<<"${line%%#*}"
+	[[ -n $path ]] || continue
+	paths+=("$path")
+done <"$home/boilerplate.txt"
+if ((${#paths[@]} == 0)); then
+	echo "boilerplate.txt lists no file" >&2
+	exit 1
+fi
 
 # The Language Plugins in the manifest.
 plugins=()
 while read -r line || [[ -n $line ]]; do
 	read -r name _ <<<"${line%%#*}"
-	[[ $name == codestyle-*.nvim && $name != "$template" ]] && plugins+=("$name")
+	[[ $name == codestyle-*.nvim && $name != "$template" ]] || continue
+	plugins+=("$name")
 done <"$home/repos.txt"
 
 for name in "${named[@]}"; do
-	[[ " ${plugins[*]} " == *" $name "* ]] || {
+	[[ " ${plugins[*]} " == *" ""$name"" "* ]] || {
 		echo "$name is not a Language Plugin in repos.txt" >&2
 		usage
 	}
@@ -52,30 +63,30 @@ if [[ ! -e $home/$template/.git ]]; then
 	exit 1
 fi
 
-# files <dir>: the boilerplate files in a clone, tracked or untracked but
-# not ignored.
-files() { git -C "$1" ls-files -co --exclude-standard -- "${paths[@]}"; }
+# list_boilerplate <dir>: the boilerplate files in a clone, tracked or
+# untracked but not ignored, each ended by a NUL byte.
+list_boilerplate() { git -C "$1" ls-files -z -co --exclude-standard -- "${paths[@]}"; }
 
 # compare <name>: prints one line per boilerplate file that differs, and
 # with --diff its diff.
 compare() {
-	local file ours theirs kind
-	while read -r file; do
-		ours="$home/$template/$file" theirs="$home/$1/$file"
-		if [[ ! -e $theirs ]]; then
-			kind=missing theirs=/dev/null
-		elif [[ ! -e $ours ]]; then
-			kind=extra ours=/dev/null
-		elif ! cmp -s "$ours" "$theirs"; then
+	local file template_file plugin_file kind
+	while read -r -d '' file; do
+		template_file="$home/$template/$file" plugin_file="$home/$1/$file"
+		if [[ ! -e $plugin_file ]]; then
+			kind=missing plugin_file=/dev/null
+		elif [[ ! -e $template_file ]]; then
+			kind=extra template_file=/dev/null
+		elif ! cmp -s "$template_file" "$plugin_file"; then
 			kind=changed
 		else
 			continue
 		fi
 		echo "  $kind: $file"
 		if $show_diff; then
-			diff -u --label "$template/$file" --label "$1/$file" "$ours" "$theirs" || true
+			diff -u --label "$template/$file" --label "$1/$file" "$template_file" "$plugin_file" || true
 		fi
-	done < <({ files "$home/$template" && files "$home/$1"; } | sort -u)
+	done < <({ list_boilerplate "$home/$template" && list_boilerplate "$home/$1"; } | sort -zu)
 }
 
 for name in "${plugins[@]}"; do

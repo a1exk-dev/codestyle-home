@@ -218,6 +218,35 @@ test_boilerplate_list_comments_and_blank_lines_are_ignored() {
 	expect_no_output "CONTRIBUTING"
 }
 
+test_empty_boilerplate_list_fails() {
+	standard_home
+	printf '# nothing yet\n' >"$home/boilerplate.txt"
+	make_clone codestyle-json.nvim
+	run_drift
+	expect_status 1
+	expect_output "boilerplate.txt lists no file"
+}
+
+test_non_ascii_file_name_is_compared() {
+	make_home docs/
+	make_clone "$template"
+	mkdir "$home/$template/docs"
+	echo "same" >"$home/$template/docs/é.md"
+	make_clone codestyle-json.nvim
+	mkdir "$home/codestyle-json.nvim/docs"
+	echo "same" >"$home/codestyle-json.nvim/docs/é.md"
+	run_drift
+	expect_status 0
+	expect_output "^clean: codestyle-json.nvim$"
+}
+
+test_name_with_glob_characters_fails() {
+	standard_home
+	make_clone codestyle-json.nvim
+	run_drift 'codestyle-*.nvim'
+	expect_status 2
+}
+
 passed=0
 failed=0
 for test in $(declare -F | awk '{print $3}' | grep '^test_'); do
