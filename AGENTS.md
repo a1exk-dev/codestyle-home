@@ -9,7 +9,8 @@ The operator's workspace. Each repo in `repos.txt` is a separate Git repo in a g
 
 ## Policies
 
-- The policies in the home's `docs/agents/` cover every repo. When a skill names `docs/agents/<file>`, read that file in the home root, also while you work in a repo folder. The repos keep no copies.
+- The policies in the home's `docs/agents/` cover every repo. When a skill names `docs/agents/<file>`, read that file in the home root, also while you work in a repo folder.
+- Each repo keeps a copy of the `git-commit`, `semver` and `common-changelog` skills and their policies ([ADR-0006](docs/adr/0006-each-repo-keeps-a-copy-of-the-process-skills-and-policies.md)). Change them only in the home. After that change merges, run `scripts/copy-skills.sh` and open one pull request per repo with its result.
 - The Semver policy, `docs/agents/semver-policy.md`, covers the Core, the template, and the Language Plugins. It does not cover the home, which works on `main` only, through pull requests.
 
 ## Questions

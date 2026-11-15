@@ -40,7 +40,7 @@ On each repo in `repos.txt`, `main` and `develop` then require the five checks o
 
 ## Agent setup
 
-The home holds the agent setup for every repo: the skills in `.agents/skills/` and `.claude/skills/` (pinned in `skills-lock.json`), the main `AGENTS.md`, and the process policies in `docs/agents/`. Start Claude Code at the home root, so that it loads them. Each repo keeps only a short `AGENTS.md` about itself, and builds and tests without the home.
+The home holds the agent setup for every repo: the skills in `.agents/skills/` and `.claude/skills/` (pinned in `skills-lock.json`), the main `AGENTS.md`, and the process policies in `docs/agents/`. Start Claude Code at the home root, so that it loads them. Each repo keeps a short `AGENTS.md` about itself and a copy of the commit, semver and changelog skills and their policies, and builds and tests without the home. After a change to one of these skills or policies, run `scripts/copy-skills.sh` and open one pull request per repo. `scripts/copy-skills.sh --check` names each stale copy.
 
 ## Change the home
 

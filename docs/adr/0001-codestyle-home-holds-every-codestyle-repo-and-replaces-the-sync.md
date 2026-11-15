@@ -1,5 +1,7 @@
 # codestyle-home holds every codestyle repo and replaces the sync
 
+Amended by [ADR-0006](0006-each-repo-keeps-a-copy-of-the-process-skills-and-policies.md): each repo keeps a copy of the commit, semver and changelog skills and their policies.
+
 The project adopts `codestyle-home`, a public workspace repo that holds every codestyle repo, the shared agent setup and the docs that cover more than one repo. It supersedes [ADR-0005](0005-language-plugins-keep-own-repos-and-get-shared-files-through-the-template.md): no Core-to-template-to-plugin sync runs, and no GitHub App opens pull requests ("Does a home repo that holds every codestyle repo replace the ADR-0020 sync?", [codestyle.nvim#108](https://github.com/a1exk-dev/codestyle.nvim/issues/108)). The facts on agent context come from "Do coding agents load a parent folder's AGENTS.md, CLAUDE.md and skills from inside a nested Git repo?" ([codestyle.nvim#109](https://github.com/a1exk-dev/codestyle.nvim/issues/109)).
 
 ## Decision
