@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Protects `main` and `develop` on each GitHub repo in the home's manifest
 # (repos.gitconfig) with your `gh` login: each branch requires the five
-# checks of Core ADR-0017, from GitHub Actions, also for admins. Sets only
-# a branch whose protection differs, so it is safe to run again after a
-# repo joins the manifest. Names each repo and branch with "protected",
-# "up to date" or "failed", and exits non-zero when one failed, after
-# the others.
+# checks of Core ADR-0017, from GitHub Actions, also for admins. Also
+# allows auto-merge and deletes a pull request's branch after its merge,
+# for the operator's pull requests that the Auto-merge workflow merges.
+# Sets only a branch or settings that differ, so it is safe to run again
+# after a repo joins the manifest. Names each repo and branch, or the
+# repo's settings, with "protected", "set", "up to date" or "failed", and
+# exits non-zero when one failed, after the others.
 set -euo pipefail
 
 home="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -87,6 +89,25 @@ protect() {
 	fi
 }
 
+# The repo settings, in the shape that GitHub returns them.
+settings='{"allow_auto_merge":true,"delete_branch_on_merge":true}'
+
+# configure <owner/repo>: sets the repo settings when they differ; sets
+# $result, and $reason when it fails.
+configure() {
+	local path="repos/$1" current
+	reason=
+	if ! current="$(gh api "$path" --jq '{allow_auto_merge, delete_branch_on_merge}' 2>"$errors" </dev/null)"; then
+		result="failed" reason="$(<"$errors")"
+	elif [[ "$(jq -cS . <<<"$current")" == "$(jq -cS . <<<"$settings")" ]]; then
+		result="up to date"
+	elif reason="$(gh api --method PATCH "$path" --input - <<<"$settings" 2>&1 >/dev/null)"; then
+		result="set"
+	else
+		result="failed"
+	fi
+}
+
 errors="$(mktemp)"
 trap 'rm -f "$errors"' EXIT
 
@@ -98,5 +119,8 @@ while read -r key repo; do
 		echo "$result: $name $branch${reason:+ ($reason)}"
 		[[ $result != failed ]] || status=1
 	done
+	configure "$repo"
+	echo "$result: $name settings${reason:+ ($reason)}"
+	[[ $result != failed ]] || status=1
 done < <(git config -f "$home/repos.gitconfig" --get-regexp '^repo\..+\.github$')
 exit "$status"

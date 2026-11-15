@@ -35,7 +35,7 @@ scripts/drift.sh
 
 For each Language Plugin clone, it lists the boilerplate files that differ from the template clone: changed, missing, or extra. `boilerplate.txt` lists the boilerplate files. Add `--diff` to show each difference, and name plugins to report only those. Plugins may differ on purpose, so the report changes no file and does not fail on a difference. It fails only when the template is not cloned, `boilerplate.txt` lists no file, or an argument is wrong.
 
-## Protect the branches
+## Protect the branches and turn on auto-merge
 
 After a repo joins `repos.gitconfig`, run with your `gh` login:
 
@@ -43,7 +43,7 @@ After a repo joins `repos.gitconfig`, run with your `gh` login:
 scripts/protect.sh
 ```
 
-On each repo in `repos.gitconfig`, `main` and `develop` then require the five checks of Core ADR-0017, from GitHub Actions, also for admins. The script owns every rule of branch protection: it turns off any other rule set by hand, such as required reviews or linear history. The script changes only a branch whose protection differs, and names each branch `protected`, `up to date`, or `failed`. It exits non-zero when a branch failed, for example because the repo has no `develop` yet. It needs `jq`.
+On each repo in `repos.gitconfig`, `main` and `develop` then require the five checks of Core ADR-0017, from GitHub Actions, also for admins. The script owns every rule of branch protection: it turns off any other rule set by hand, such as required reviews or linear history. It also allows auto-merge and deletes the branch of a merged pull request on each repo. The script changes only a branch or settings that differ, and names each branch, and each repo's settings, `protected`, `set`, `up to date`, or `failed`. It exits non-zero when a branch failed, for example because the repo has no `develop` yet. It needs `jq`.
 
 ## Agent setup
 
@@ -51,4 +51,4 @@ The home holds the agent setup for every repo: the skills in `.agents/skills/` a
 
 ## Change the home
 
-The home has one branch, `main`, with no versions or changelog. Open a pull request from a feature branch into `main`. CI runs each `tests/*_test.sh` and `typos`.
+The home has one branch, `main`, with no versions or changelog. Open a pull request from a feature branch into `main`. CI runs each `tests/*_test.sh` and `typos`, and `main` requires both checks. The Auto-merge workflow turns on auto-merge for your own pull requests, so each one merges with a merge commit when both checks pass, and its branch is deleted. The pull requests of other people wait for your review.
