@@ -24,23 +24,51 @@ make_gh() {
 	mkdir -p "$tmp/bin" "$github"
 	cat >"$tmp/bin/gh" <<'GH'
 #!/usr/bin/env bash
-# Fake `gh api [--method M] repos/<o>/<r>/branches/<b>[/protection]
-# [--silent] [--input -]`. A file `fail` in a branch folder makes each
-# GET of its protection fail with that file's text.
+# Fake `gh api [--method M] repos/<o>/<r>[/branches/<b>[/protection]]
+# [--silent] [--input -] [--jq <filter>]`. A file `fail` in a branch
+# folder makes each GET of its protection fail with that file's text,
+# and a file `fail` in a repo folder makes each GET of the repo fail.
+# The repo's settings are in `settings.json` in its folder.
 set -euo pipefail
 [[ $1 == api ]] || exit 99
 shift
-method=GET path=
+method=GET path= filter=.
 while (($#)); do
 	case $1 in
 	--method) method=$2 && shift ;;
 	--silent) ;;
 	--input) [[ $2 == - ]] || exit 99 && shift ;;
+	--jq) filter=$2 && shift ;;
 	repos/*) path=$1 ;;
 	*) echo "fake gh: unknown argument $1" >&2 && exit 99 ;;
 	esac
 	shift
 done
+if [[ $path =~ ^repos/([^/]+/[^/]+)$ ]]; then
+	dir="$FAKE_GITHUB/${BASH_REMATCH[1]}"
+	if [[ ! -d $dir ]]; then
+		echo "gh: Not Found (HTTP 404)" >&2
+		exit 1
+	fi
+	[[ -e $dir/settings.json ]] ||
+		echo '{"allow_auto_merge":false,"delete_branch_on_merge":false,"allow_squash_merge":true}' >"$dir/settings.json"
+	case $method in
+	GET)
+		if [[ -e $dir/fail ]]; then
+			cat "$dir/fail" >&2
+			exit 1
+		fi
+		jq "$filter" "$dir/settings.json"
+		;;
+	PATCH)
+		jq -s '.[0] * .[1]' "$dir/settings.json" - >"$dir/settings.new"
+		mv "$dir/settings.new" "$dir/settings.json"
+		echo "${BASH_REMATCH[1]} settings" >>"$FAKE_GITHUB/writes"
+		;;
+	*) exit 99 ;;
+	esac
+	exit 0
+fi
 [[ $path =~ ^repos/([^/]+/[^/]+)/branches/([^/]+)(/protection)?$ ]] || exit 99
 dir="$FAKE_GITHUB/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
 if [[ ! -d $dir ]]; then
@@ -132,6 +160,14 @@ expect_protected() {
 		fail "$1 $2 has the wrong protection: $(cat "$file")"
 }
 
+# expect_settings <owner/repo>: the repo allows auto-merge and deletes a
+# merged branch, and keeps its other settings.
+expect_settings() {
+	local file="$github/$1/settings.json"
+	jq -e '.allow_auto_merge and .delete_branch_on_merge and .allow_squash_merge' "$file" >/dev/null 2>&1 ||
+		fail "$1 has the wrong settings: $(cat "$file" 2>/dev/null)"
+}
+
 test_unprotected_repo_gets_the_five_checks_on_main_and_develop() {
 	make_gh
 	make_repo example/alpha main develop
@@ -144,6 +180,43 @@ test_unprotected_repo_gets_the_five_checks_on_main_and_develop() {
 	expect_output "^protected: alpha develop$"
 }
 
+test_repo_allows_auto_merge_and_deletes_merged_branches() {
+	make_gh
+	make_repo example/alpha main develop
+	make_home example/alpha
+	run_protect
+	expect_status 0
+	expect_settings example/alpha
+	expect_output "^set: alpha settings$"
+}
+
+test_settings_changed_by_hand_are_set_again() {
+	make_gh
+	make_repo example/alpha main develop
+	make_home example/alpha
+	run_protect
+	jq '.allow_auto_merge = false' "$github/example/alpha/settings.json" >"$tmp/changed.json"
+	mv "$tmp/changed.json" "$github/example/alpha/settings.json"
+	run_protect
+	expect_status 0
+	expect_settings example/alpha
+	expect_output "^set: alpha settings$"
+	expect_output "^up to date: alpha main$"
+}
+
+test_failing_read_of_settings_fails_without_a_change() {
+	make_gh
+	make_repo example/alpha main develop
+	make_repo example/beta main develop
+	make_home example/alpha example/beta
+	echo "gh: Must have admin rights to Repository. (HTTP 403)" >"$github/example/alpha/fail"
+	run_protect
+	expect_status 1
+	expect_output "^failed: alpha settings \\(gh: Must have admin rights"
+	[[ "$(writes)" != *"example/alpha settings"* ]] || fail "the settings were changed"
+	expect_settings example/beta
+}
+
 test_second_run_changes_nothing() {
 	make_gh
 	make_repo example/alpha main develop
@@ -153,7 +226,8 @@ test_second_run_changes_nothing() {
 	before="$(writes)"
 	run_protect
 	expect_status 0
-	[[ "$(writes)" == "$before" ]] || fail "the second run changed protection"
+	[[ "$(writes)" == "$before" ]] || fail "the second run changed protection or settings"
+	expect_output "^up to date: alpha settings$"
 	expect_output "^up to date: alpha main$"
 	expect_output "^up to date: alpha develop$"
 }
