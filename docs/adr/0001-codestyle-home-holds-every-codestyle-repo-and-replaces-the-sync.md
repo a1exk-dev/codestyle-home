@@ -10,6 +10,7 @@ The project adopts `codestyle-home`, a public workspace repo that holds every co
 - **The home holds:** the skills, the main `AGENTS.md`/`CLAUDE.md`, the process policies (`docs/agents/`), and the docs and ADRs that cover more than one repo.
 - **Each repo holds:** only what is about that repo: README, its own ADRs, its own glossary, and a short `AGENTS.md`. The domain `GLOSSARY.md` and the ADRs about Core code stay in the Core. Plugins link to them and keep no copies.
 - **Boilerplate:** no automatic sync and no GitHub App. A template change may not fit every plugin, so the agent that makes it in the home opens one pull request per plugin and adapts it where needed. Plugins may differ from the template. A home command reports, per plugin, the boilerplate files that differ.
+- **Home process:** the home has one protected `main`, and its changes arrive by pull request, with no versions, tags or changelog. The process policies in its `docs/agents/` cover every repo, and the repos keep no copies. The Semver policy covers the Core, the template and the Language Plugins, but not the home.
 - **Visibility:** `codestyle-home` is public, so links from repo docs to cross-repo ADRs work.
 - **Issues:** all agent work (wayfinder maps, specs, `ready-for-agent` and `ready-for-human` issues) lives in the home tracker. Each repo's tracker is only for contributors and release discussions.
 - **ADRs:** the cross-repo ADRs move to the home and are numbered from 0001, with this decision first: Core ADR-0009, ADR-0013, ADR-0019 and ADR-0020 become ADR-0002 to ADR-0005. Each Core original becomes a "Moved to" stub, and Core ADR numbers are never reused.
@@ -28,3 +29,4 @@ What the Language Plugin template contains is out of scope and goes to a separat
 - A change to a skill or policy reaches every repo in one home pull request.
 - An agent session that starts inside one repo, or in the cloud, sees only that repo's short `AGENTS.md`, not the home's skills and policies.
 - Links to the moved ADRs from Core docs resolve through the stubs.
+- A skill that reads `docs/agents/<file>` finds it at the home root, not in the repo folder that the task changes. The home's `AGENTS.md` says so.
