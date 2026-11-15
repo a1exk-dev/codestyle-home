@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Tests for scripts/clone.sh on throwaway Git repos.
 # Each test runs the script as the operator would, in a temporary home
-# with its own manifest, and checks folders, summary and exit code.
+# with its own manifest. A fake `gh` on PATH clones from bare remotes in
+# folders. The tests check folders, summary and exit code.
 set -euo pipefail
 
 script="$(cd "$(dirname "$0")/.." && pwd)/scripts/clone.sh"
@@ -15,11 +16,25 @@ setup_git() {
 	git config --global init.defaultBranch main
 }
 
+# make_gh: a fake `gh repo clone <owner/name> <dir> -- <git args>` that
+# clones the bare remote $FAKE_GITHUB/<owner/name>.git.
+make_gh() {
+	mkdir -p "$tmp/bin" "$tmp/remotes"
+	cat >"$tmp/bin/gh" <<'GH'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $1 == repo && $2 == clone && $5 == -- ]] || exit 99
+exec git clone "${@:6}" "$FAKE_GITHUB/$3.git" "$4"
+GH
+	chmod +x "$tmp/bin/gh"
+	export FAKE_GITHUB="$tmp/remotes" PATH="$tmp/bin:$PATH"
+}
+
 # make_remote <name>: a bare remote with one commit on main.
 make_remote() {
 	local work="$tmp/work-$1"
-	git init -q --bare "$tmp/remotes/$1.git"
-	git clone -q "$tmp/remotes/$1.git" "$work" 2>/dev/null
+	git init -q --bare "$tmp/remotes/example/$1.git"
+	git clone -q "$tmp/remotes/example/$1.git" "$work" 2>/dev/null
 	echo one >"$work/file"
 	git -C "$work" add file
 	git -C "$work" commit -q -m one
@@ -40,11 +55,12 @@ make_home() {
 	git init -q "$home"
 	mkdir "$home/scripts"
 	cp "$script" "$home/scripts/clone.sh"
-	: >"$home/repos.txt"
-	for name in "$@"; do add_entry "$name" "$tmp/remotes/$name.git"; done
+	: >"$home/repos.gitconfig"
+	for name in "$@"; do add_entry "$name" "example/$name"; done
 }
 
-add_entry() { echo "$1 $2" >>"$home/repos.txt"; }
+# add_entry <folder> <owner/name>: one more repo in the manifest.
+add_entry() { printf '[repo "%s"]\n\tgithub = %s\n' "$1" "$2" >>"$home/repos.gitconfig"; }
 
 # run_clone: runs the script from outside the home; sets $out and $status.
 run_clone() {
@@ -137,7 +153,7 @@ test_new_manifest_line_is_cloned_on_next_run() {
 	make_remote beta
 	make_home alpha
 	run_clone
-	add_entry beta "$tmp/remotes/beta.git"
+	add_entry beta example/beta
 	run_clone
 	expect_status 0
 	expect_file beta one
@@ -145,31 +161,31 @@ test_new_manifest_line_is_cloned_on_next_run() {
 	expect_output "up to date.*alpha"
 }
 
-test_manifest_blank_lines_and_comments_are_ignored() {
+test_manifest_comments_and_other_keys_are_ignored() {
 	make_remote alpha
 	make_home
-	printf '# The codestyle repos\n\n  alpha   %s  # the first\n\n' \
-		"$tmp/remotes/alpha.git" >"$home/repos.txt"
+	printf '# The codestyle repos\n\n[repo "alpha"]\n\tgithub = example/alpha ; the first\n\tnote = x\n' \
+		>"$home/repos.gitconfig"
 	run_clone
 	expect_status 0
 	expect_file alpha one
 	expect_output "cloned.*alpha"
 }
 
-test_last_manifest_line_without_newline_is_cloned() {
+test_folder_with_dots_is_cloned() {
 	make_remote alpha
 	make_home
-	printf 'alpha %s' "$tmp/remotes/alpha.git" >"$home/repos.txt"
+	add_entry codestyle.nvim example/alpha
 	run_clone
 	expect_status 0
-	expect_file alpha one
+	expect_file codestyle.nvim one
 }
 
 test_failing_clone_exits_non_zero_after_the_other_repos() {
 	make_remote beta
 	make_home
-	add_entry alpha "$tmp/remotes/missing.git"
-	add_entry beta "$tmp/remotes/beta.git"
+	add_entry alpha example/missing
+	add_entry beta example/beta
 	run_clone
 	expect_status 1
 	expect_output "failed.*alpha"
@@ -182,7 +198,7 @@ test_failing_pull_exits_non_zero_after_the_other_repos() {
 	make_remote beta
 	make_home alpha beta
 	run_clone
-	rm -rf "$tmp/remotes/alpha.git"
+	rm -rf "$tmp/remotes/example/alpha.git"
 	push_remote beta two
 	run_clone
 	expect_status 1
@@ -203,7 +219,7 @@ passed=0
 failed=0
 for test in $(declare -F | awk '{print $3}' | grep '^test_'); do
 	tmp="$(mktemp -d)"
-	if (setup_git && "$test"); then
+	if (setup_git && make_gh && "$test"); then
 		passed=$((passed + 1))
 		echo "ok   $test"
 	else

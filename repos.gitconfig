@@ -1,0 +1,6 @@
+# The codestyle repos in this home, in Git config format. Each section is
+# one repo: its name is the folder at the home root, and `github` is the
+# repo on GitHub as owner/name. scripts/clone.sh clones each one into its
+# folder with `gh repo clone`, which uses your gh login and protocol.
+[repo "codestyle.nvim"]
+	github = a1exk-dev/codestyle.nvim

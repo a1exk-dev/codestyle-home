@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Protects `main` and `develop` on each GitHub repo in the home's manifest
-# (repos.txt) with your `gh` login: each branch requires the five checks
-# of Core ADR-0017, from GitHub Actions, also for admins. Sets only a
-# branch whose protection differs, so it is safe to run again after a
+# (repos.gitconfig) with your `gh` login: each branch requires the five
+# checks of Core ADR-0017, from GitHub Actions, also for admins. Sets only
+# a branch whose protection differs, so it is safe to run again after a
 # repo joins the manifest. Names each repo and branch with "protected",
 # "up to date" or "failed", and exits non-zero when one failed, after
 # the others.
@@ -61,19 +61,6 @@ rules='{
 sorted='.required_status_checks.checks |= (. // [] | sort_by(.context)) | tojson'
 wanted="$(jq -r "$sorted" <<<"$protection")"
 
-# github_repo <url>: the owner/repo of a GitHub clone URL; fails for
-# another URL.
-github_repo() {
-	local repo
-	case $1 in
-	https://github.com/*) repo=${1#https://github.com/} ;;
-	git@github.com:*) repo=${1#git@github.com:} ;;
-	*) return 1 ;;
-	esac
-	repo=${repo%.git}
-	[[ $repo =~ ^[^/]+/[^/]+$ ]] && echo "$repo"
-}
-
 # protect <owner/repo> <branch>: sets the protection when it differs;
 # sets $result, and $reason when it fails.
 protect() {
@@ -104,22 +91,12 @@ errors="$(mktemp)"
 trap 'rm -f "$errors"' EXIT
 
 status=0
-while read -r line || [[ -n $line ]]; do
-	read -r name url _ <<<"${line%%#*}"
-	[[ -n $name ]] || continue
-	if [[ -z $url ]]; then
-		echo "failed: $name (no GitHub URL)"
-		status=1
-		continue
-	elif ! repo="$(github_repo "$url")"; then
-		echo "failed: $name ($url is not a GitHub repo)"
-		status=1
-		continue
-	fi
+while read -r key repo; do
+	name=${key#repo.} && name=${name%.github}
 	for branch in main develop; do
 		protect "$repo" "$branch"
 		echo "$result: $name $branch${reason:+ ($reason)}"
 		[[ $result != failed ]] || status=1
 	done
-done <"$home/repos.txt"
+done < <(git config -f "$home/repos.gitconfig" --get-regexp '^repo\..+\.github$')
 exit "$status"

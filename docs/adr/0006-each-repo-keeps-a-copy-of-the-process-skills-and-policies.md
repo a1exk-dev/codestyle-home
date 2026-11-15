@@ -6,7 +6,7 @@ Amends [ADR-0001](0001-codestyle-home-holds-every-codestyle-repo-and-replaces-th
 
 - **What is copied:** `.agents/skills/<skill>/` for the three skills, a Claude Code link `.claude/skills/<skill>` to each, and the three policies in `docs/agents/`. The other skills and policies stay only in the home.
 - **Source:** the home. A skill or policy changes only in the home, by a pull request into `main`.
-- **Copy:** `scripts/copy-skills.sh` writes the home's copies into each clone in `repos.txt` and commits nothing. The agent that changed the home opens one pull request per repo with the result, as for a template change (ADR-0001). No bot or App runs.
+- **Copy:** `scripts/copy-skills.sh` writes the home's copies into each clone in `repos.gitconfig` and commits nothing. The agent that changed the home opens one pull request per repo with the result, as for a template change (ADR-0001). No bot or App runs.
 - **Drift:** `scripts/copy-skills.sh --check` names each stale copy and exits non-zero.
 
 ## Considered Options

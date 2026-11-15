@@ -1,6 +1,6 @@
 # Triage labels
 
-The skills name triage roles. This file maps each role to its label in the home tracker, `a1exk-dev/codestyle-home`. The tracker of each repo in `repos.txt` uses the same labels for contributors' bug reports.
+The skills name triage roles. This file maps each role to its label in the home tracker, `a1exk-dev/codestyle-home`. The tracker of each repo in `repos.gitconfig` uses the same labels for contributors' bug reports.
 
 ## State roles
 
