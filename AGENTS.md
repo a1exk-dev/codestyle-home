@@ -24,7 +24,7 @@ The operator's workspace. Each repo in `repos.gitconfig` is a separate Git repo 
 ## Workflow
 
 - Changelog: In each pull request into a repo's `develop` with a change that users can see, add its item under `## Unreleased` of that repo's `CHANGELOG.md` with the common-changelog Skill. On each `release/*` or `hotfix/*` branch, release the changelog as its version before you open the pull request into `main` ([ADR-0004](docs/adr/0004-public-0x-releases-cut-from-git-flow-branches.md)).
-- Auto-merge: The Auto-merge workflow of the home and of each repo turns on auto-merge for each pull request that the operator's login opens into the home's `main` or a repo's `develop`. GitHub merges it with the merge message below when its required checks pass, and deletes its branch. Do not merge such a pull request by hand. A pull request of another person waits for the operator's review.
+- Auto-merge: The Auto-merge workflow of the home and of each repo turns on auto-merge for each pull request that the operator's login opens into the home's `main` or a repo's `develop`. GitHub merges it with the merge message below when its required checks pass, and deletes its branch within the hour. Do not merge such a pull request by hand. A pull request of another person waits for the operator's review.
 - Merge messages: Start the message of each merge commit into `develop` with the line `<type>[(<scope>)]: merge <branch> into develop (#<n>)`, and of each merge commit into the home's `main` with `<type>[(<scope>)]: merge <branch> into main (#<n>)`. When you write this message, obey each Setting of the Commit policy, `docs/agents/commit-policy.md`, that controls the message.
 
 ## Checks
