@@ -28,6 +28,16 @@ scripts/drift.sh
 
 For each Language Plugin clone, it lists the boilerplate files that differ from the template clone: changed, missing, or extra. `boilerplate.txt` lists the boilerplate files. Add `--diff` to show each difference, and name plugins to report only those. Plugins may differ on purpose, so the report changes no file and does not fail on a difference. It fails only when the template is not cloned, `boilerplate.txt` lists no file, or an argument is wrong.
 
+## Protect the branches
+
+After a repo joins `repos.txt`, run with your `gh` login:
+
+```sh
+scripts/protect.sh
+```
+
+On each repo in `repos.txt`, `main` and `develop` then require the five checks of Core ADR-0017, from GitHub Actions, also for admins. The script changes only a branch whose protection differs, and names each branch `protected`, `up to date`, or `failed`. It exits non-zero when a branch failed, for example because the repo has no `develop` yet. It needs `jq`.
+
 ## Agent setup
 
 The home holds the agent setup for every repo: the skills in `.agents/skills/` and `.claude/skills/` (pinned in `skills-lock.json`), the main `AGENTS.md`, and the process policies in `docs/agents/`. Start Claude Code at the home root, so that it loads them. Each repo keeps only a short `AGENTS.md` about itself, and builds and tests without the home.
