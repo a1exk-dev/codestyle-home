@@ -24,14 +24,14 @@ The Core dev script can also write a first draft (`--scaffold`) of the spec and 
 
 ## Following the Core
 
-Amended by [ADR-0005](0005-language-plugins-keep-own-repos-and-get-shared-files-through-the-template.md): first-party plugins get the template's boilerplate by sync, and apply only their own code changes by hand.
+Amended by [ADR-0005](0005-language-plugins-keep-own-repos-and-get-shared-files-through-the-template.md), since superseded by [ADR-0001](0001-codestyle-home-holds-every-codestyle-repo-and-replaces-the-sync.md): no sync runs. A template change reaches each plugin in its own pull request, adapted where needed.
 
 - A contract `api` bump comes with a migration section in the Core's release notes. The template gets the same change in a commit tagged `api-<N>`, and a plugin applies `git diff api-<N-1> api-<N>` of the template by hand.
 - The template's own CI runs `init.lua` on a throwaway copy, with Neovim's bundled `query` parser, and runs every check on the result. So the template keeps working between plugin launches.
 
 ## Repo process
 
-Amended by [ADR-0005](0005-language-plugins-keep-own-repos-and-get-shared-files-through-the-template.md): the Core pushes a listed subset of these files to the template, and the template pushes them to the plugins, instead of a weekly copy.
+Amended by [ADR-0005](0005-language-plugins-keep-own-repos-and-get-shared-files-through-the-template.md), since superseded by [ADR-0001](0001-codestyle-home-holds-every-codestyle-repo-and-replaces-the-sync.md): plugins carry no copies of the skills, `AGENTS.md`, `docs/agents/` or Core docs. These live in codestyle-home, and each plugin keeps a short `AGENTS.md` and its own docs.
 
 Plugin repos follow the Core's process: Git Flow with `develop` and `main`, and the same commit policy and release workflow. They carry full copies of the Core's skills (through `skills-lock.json`), `AGENTS.md`, `CLAUDE.md` and `docs/agents/`. The Core's ADRs and `GLOSSARY.md` are copied into `docs/core/`, and plugins never edit them there. A weekly workflow copies them from the Core's `main` and opens a PR into `develop` when they changed. A plugin records its own decisions in `docs/adr/` from 0001, and its own terms in its own `GLOSSARY.md`.
 
