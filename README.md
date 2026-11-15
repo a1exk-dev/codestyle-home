@@ -18,6 +18,10 @@ It never changes a clone's branch and never discards work. It skips a clone that
 
 Add one line to `repos.txt`: the folder name and the clone URL. The next run of `scripts/clone.sh` clones it. Name the repo `codestyle-<name>.nvim`, so that `.gitignore` already ignores its folder.
 
+## Agent setup
+
+The home holds the agent setup for every repo: the skills in `.agents/skills/` and `.claude/skills/` (pinned in `skills-lock.json`), the main `AGENTS.md`, and the process policies in `docs/agents/`. Start Claude Code at the home root, so that it loads them. Each repo keeps only a short `AGENTS.md` about itself, and builds and tests without the home.
+
 ## Change the home
 
 The home has one branch, `main`, with no versions or changelog. Open a pull request from a feature branch into `main`. CI runs `tests/clone_test.sh` and `typos`.
