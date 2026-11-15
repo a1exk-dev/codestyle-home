@@ -51,4 +51,4 @@ The home holds the agent setup for every repo: the skills in `.agents/skills/` a
 
 ## Change the home
 
-The home has one branch, `main`, with no versions or changelog. Open a pull request from a feature branch into `main`. CI runs each `tests/*_test.sh` and `typos`, and `main` requires both checks. The Auto-merge workflow turns on auto-merge for your own pull requests, so each one merges with a merge commit when both checks pass, and its branch is deleted. The pull requests of other people wait for your review.
+The home has one branch, `main`, with no versions or changelog. Open a pull request from a feature branch into `main`. CI runs each `tests/*_test.sh` and `typos`, and `main` requires both checks. The Auto-merge workflow turns on auto-merge for your own pull requests, so each one merges with a merge commit when both checks pass, and its branch is deleted within the hour. The pull requests of other people wait for your review.
