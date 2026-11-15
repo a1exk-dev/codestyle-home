@@ -36,7 +36,7 @@ After a repo joins `repos.txt`, run with your `gh` login:
 scripts/protect.sh
 ```
 
-On each repo in `repos.txt`, `main` and `develop` then require the five checks of Core ADR-0017, from GitHub Actions, also for admins. The script changes only a branch whose protection differs, and names each branch `protected`, `up to date`, or `failed`. It exits non-zero when a branch failed, for example because the repo has no `develop` yet. It needs `jq`.
+On each repo in `repos.txt`, `main` and `develop` then require the five checks of Core ADR-0017, from GitHub Actions, also for admins. The script owns every rule of branch protection: it turns off any other rule set by hand, such as required reviews or linear history. The script changes only a branch whose protection differs, and names each branch `protected`, `up to date`, or `failed`. It exits non-zero when a branch failed, for example because the repo has no `develop` yet. It needs `jq`.
 
 ## Agent setup
 

@@ -11,6 +11,13 @@ script="$(cd "$(dirname "$0")/.." && pwd)/scripts/protect.sh"
 # The five required checks of Core ADR-0017.
 checks='["Format check with StyLua","Spell check with typos","Tests (Neovim stable)","Tests (Neovim v0.11.7)","Type check with lua-language-server"]'
 
+# Isolate the tests from the operator's Git config.
+setup_git() {
+	export GIT_CONFIG_NOSYSTEM=1
+	export GIT_CONFIG_GLOBAL="$tmp/gitconfig"
+	git config --global init.defaultBranch main
+}
+
 # make_gh: a fake `gh api` that serves $github/<owner>/<repo>/<branch>/.
 make_gh() {
 	github="$tmp/github"
@@ -18,7 +25,8 @@ make_gh() {
 	cat >"$tmp/bin/gh" <<'GH'
 #!/usr/bin/env bash
 # Fake `gh api [--method M] repos/<o>/<r>/branches/<b>[/protection]
-# [--silent] [--input -]`.
+# [--silent] [--input -]`. A file `fail` in a branch folder makes each
+# GET of its protection fail with that file's text.
 set -euo pipefail
 [[ $1 == api ]] || exit 99
 shift
@@ -26,7 +34,8 @@ method=GET path=
 while (($#)); do
 	case $1 in
 	--method) method=$2 && shift ;;
-	--silent | --input) [[ $1 == --input ]] && shift ;;
+	--silent) ;;
+	--input) [[ $2 == - ]] || exit 99 && shift ;;
 	repos/*) path=$1 ;;
 	*) echo "fake gh: unknown argument $1" >&2 && exit 99 ;;
 	esac
@@ -41,7 +50,10 @@ fi
 [[ -n ${BASH_REMATCH[3]} ]] || exit 0
 case $method in
 GET)
-	if [[ ! -e $dir/protection.json ]]; then
+	if [[ -e $dir/fail ]]; then
+		cat "$dir/fail" >&2
+		exit 1
+	elif [[ ! -e $dir/protection.json ]]; then
 		echo "gh: Branch not protected (HTTP 404)" >&2
 		exit 1
 	fi
@@ -51,10 +63,12 @@ PUT)
 	jq '{
 		required_status_checks: (.required_status_checks | {strict, checks,
 			contexts: [.checks[].context]}),
-		enforce_admins: {enabled: .enforce_admins},
-		allow_force_pushes: {enabled: (.allow_force_pushes // false)},
-		allow_deletions: {enabled: (.allow_deletions // false)}
-	} + (if .required_pull_request_reviews then
+		enforce_admins: {enabled: .enforce_admins}
+	} + (with_entries(select(.key | IN("required_linear_history",
+		"allow_force_pushes", "allow_deletions", "block_creations",
+		"required_conversation_resolution", "lock_branch", "allow_fork_syncing")))
+		| map_values({enabled: (. // false)}))
+	+ (if .required_pull_request_reviews then
 		{required_pull_request_reviews: .required_pull_request_reviews}
 		else {} end)' >"$dir/protection.json"
 	echo "${BASH_REMATCH[1]} ${BASH_REMATCH[2]}" >>"$FAKE_GITHUB/writes"
@@ -99,6 +113,8 @@ fail() {
 	exit 1
 }
 
+writes() { cat "$github/writes" 2>/dev/null || true; }
+
 expect_status() { [[ $status -eq $1 ]] || fail "expected exit $1, got $status"; }
 expect_output() { grep -qE "$1" <<<"$out" || fail "expected output matching: $1"; }
 
@@ -125,8 +141,6 @@ test_unprotected_repo_gets_the_five_checks_on_main_and_develop() {
 	expect_output "^protected: alpha main$"
 	expect_output "^protected: alpha develop$"
 }
-
-writes() { cat "$github/writes" 2>/dev/null || true; }
 
 test_second_run_changes_nothing() {
 	make_gh
@@ -210,11 +224,47 @@ test_url_that_is_not_on_github_fails() {
 	expect_protected example/beta main
 }
 
+test_rule_set_by_hand_is_turned_off() {
+	make_gh
+	make_repo example/alpha main develop
+	make_home example/alpha
+	run_protect
+	jq '.required_linear_history.enabled = true' \
+		"$github/example/alpha/main/protection.json" >"$tmp/changed.json"
+	mv "$tmp/changed.json" "$github/example/alpha/main/protection.json"
+	run_protect
+	expect_status 0
+	jq -e '.required_linear_history.enabled == false' "$github/example/alpha/main/protection.json" >/dev/null ||
+		fail "linear history is still required"
+	expect_output "^protected: alpha main$"
+}
+
+test_failing_read_of_protection_fails_without_a_change() {
+	make_gh
+	make_repo example/alpha main develop
+	make_home example/alpha
+	echo "gh: Must have admin rights to Repository. (HTTP 403)" >"$github/example/alpha/main/fail"
+	run_protect
+	expect_status 1
+	expect_output "^failed: alpha main \\(gh: Must have admin rights"
+	[[ "$(writes)" != *"example/alpha main"* ]] || fail "main was changed"
+	expect_protected example/alpha develop
+}
+
+test_manifest_line_without_url_fails() {
+	make_gh
+	make_home
+	echo "alpha" >"$home/repos.txt"
+	run_protect
+	expect_status 1
+	expect_output "^failed: alpha \\(no GitHub URL\\)$"
+}
+
 passed=0
 failed=0
 for test in $(declare -F | awk '{print $3}' | grep '^test_'); do
 	tmp="$(mktemp -d)"
-	if ("$test"); then
+	if (setup_git && "$test"); then
 		passed=$((passed + 1))
 		echo "ok   $test"
 	else

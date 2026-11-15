@@ -10,47 +10,56 @@ set -euo pipefail
 
 home="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 
-# The required checks, as GitHub Actions (app 15368) reports them.
-protection='{
-	"required_status_checks": {
-		"strict": false,
-		"checks": [
-			{"context": "Tests (Neovim v0.11.7)", "app_id": 15368},
-			{"context": "Tests (Neovim stable)", "app_id": 15368},
-			{"context": "Spell check with typos", "app_id": 15368},
-			{"context": "Format check with StyLua", "app_id": 15368},
-			{"context": "Type check with lua-language-server", "app_id": 15368}
-		]
+# The five required checks, by their job names in the Core's CI. The
+# template map (a1exk-dev/codestyle-home#28) decides the template's.
+checks=(
+	"Tests (Neovim v0.11.7)"
+	"Tests (Neovim stable)"
+	"Spell check with typos"
+	"Format check with StyLua"
+	"Type check with lua-language-server"
+)
+github_actions=15368
+
+# The request body. A PUT replaces the whole protection, so it states
+# each rule that the endpoint takes, and the comparison below covers each
+# of them.
+protection="$(jq -n --argjson app "$github_actions" '{
+	required_status_checks: {
+		strict: false,
+		checks: [$ARGS.positional[] | {context: ., app_id: $app}]
 	},
-	"enforce_admins": true,
-	"required_pull_request_reviews": null,
-	"restrictions": null,
-	"allow_force_pushes": false,
-	"allow_deletions": false
-}'
+	enforce_admins: true,
+	required_pull_request_reviews: null,
+	restrictions: null,
+	required_linear_history: false,
+	allow_force_pushes: false,
+	allow_deletions: false,
+	block_creations: false,
+	required_conversation_resolution: false,
+	lock_branch: false,
+	allow_fork_syncing: false
+}' --args "${checks[@]}")"
 
-# The settings that this script sets, from a protection that GitHub
-# returns; a protection with the same settings needs no change.
-settings='{
-	strict: .required_status_checks.strict,
-	checks: (.required_status_checks.checks // [] | map({context, app_id}) | sort_by(.context)),
+# The rules of a protection that GitHub returns, in the shape of the
+# request body.
+rules='{
+	required_status_checks: (.required_status_checks // null
+		| if . then {strict, checks: (.checks | map({context, app_id}))} else . end),
 	enforce_admins: .enforce_admins.enabled,
-	reviews: (.required_pull_request_reviews != null),
-	restrictions: (.restrictions != null),
+	required_pull_request_reviews: (.required_pull_request_reviews // null | if . then true else . end),
+	restrictions: (.restrictions // null | if . then true else . end),
+	required_linear_history: .required_linear_history.enabled,
 	allow_force_pushes: .allow_force_pushes.enabled,
-	allow_deletions: .allow_deletions.enabled
+	allow_deletions: .allow_deletions.enabled,
+	block_creations: .block_creations.enabled,
+	required_conversation_resolution: .required_conversation_resolution.enabled,
+	lock_branch: .lock_branch.enabled,
+	allow_fork_syncing: .allow_fork_syncing.enabled
 }'
-
-# The same settings from the request body above.
-wanted="$(jq -c '{
-	strict: .required_status_checks.strict,
-	checks: (.required_status_checks.checks | sort_by(.context)),
-	enforce_admins,
-	reviews: (.required_pull_request_reviews != null),
-	restrictions: (.restrictions != null),
-	allow_force_pushes,
-	allow_deletions
-}' <<<"$protection")"
+# sorted: a body with its checks in a stable order, for comparison.
+sorted='.required_status_checks.checks |= (. // [] | sort_by(.context)) | tojson'
+wanted="$(jq -r "$sorted" <<<"$protection")"
 
 # github_repo <url>: the owner/repo of a GitHub clone URL; fails for
 # another URL.
@@ -70,11 +79,18 @@ github_repo() {
 protect() {
 	local path="repos/$1/branches/$2" current
 	reason=
-	if ! reason="$(gh api "$path" --silent 2>&1)"; then
+	if ! reason="$(gh api "$path" --silent 2>&1 </dev/null)"; then
 		result="failed"
 		return
 	fi
-	current="$(gh api "$path/protection" 2>/dev/null | jq -c "$settings" || true)"
+	if current="$(gh api "$path/protection" 2>"$errors" </dev/null)"; then
+		current="$(jq "$rules" <<<"$current" | jq -r "$sorted")"
+	elif grep -q "Branch not protected" "$errors"; then
+		current=
+	else
+		result="failed" reason="$(<"$errors")"
+		return
+	fi
 	if [[ $current == "$wanted" ]]; then
 		result="up to date"
 	elif reason="$(gh api --method PUT "$path/protection" --input - <<<"$protection" 2>&1 >/dev/null)"; then
@@ -84,11 +100,18 @@ protect() {
 	fi
 }
 
+errors="$(mktemp)"
+trap 'rm -f "$errors"' EXIT
+
 status=0
 while read -r line || [[ -n $line ]]; do
 	read -r name url _ <<<"${line%%#*}"
 	[[ -n $name ]] || continue
-	if ! repo="$(github_repo "$url")"; then
+	if [[ -z $url ]]; then
+		echo "failed: $name (no GitHub URL)"
+		status=1
+		continue
+	elif ! repo="$(github_repo "$url")"; then
 		echo "failed: $name ($url is not a GitHub repo)"
 		status=1
 		continue
