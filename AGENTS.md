@@ -28,7 +28,7 @@ The operator's workspace. Each repo in `repos.txt` is a separate Git repo in a g
 
 ## Checks
 
-- When you change a home script, add or change its tests in `tests/`: plain bash on throwaway Git repos that checks only folders, output, and exit code.
+- When you change a home script, add or change its tests in `tests/`: plain bash on throwaway Git repos, with a fake CLI on PATH, such as `gh`, where the script calls a service. The fake keeps its state in folders. Check only folders, output, and exit code.
 - No check is required on the home's `main`. Before you make a check required, ask the operator.
 
 ## Agent skills
