@@ -92,12 +92,14 @@ make_home() {
 	git init -q "$home"
 	mkdir "$home/scripts"
 	cp "$script" "$home/scripts/protect.sh"
-	: >"$home/repos.txt"
+	: >"$home/repos.gitconfig"
 	local repo
 	for repo in "$@"; do add_entry "$repo"; done
 }
 
-add_entry() { echo "${1#*/} https://github.com/$1.git" >>"$home/repos.txt"; }
+# add_entry <owner/repo>: one more repo in the manifest, in a folder named
+# after the repo.
+add_entry() { printf '[repo "%s"]\n\tgithub = %s\n' "${1#*/}" "$1" >>"$home/repos.gitconfig"; }
 
 # run_protect: runs the script from outside the home; sets $out and
 # $status.
@@ -200,28 +202,21 @@ test_missing_branch_fails_after_the_other_repos() {
 	expect_protected example/beta develop
 }
 
-test_ssh_url_and_comments_in_the_manifest() {
+test_comments_and_other_keys_in_the_manifest() {
 	make_gh
 	make_repo example/alpha main develop
 	make_home
-	printf '# The codestyle repos\n\n  alpha  git@github.com:example/alpha.git  # the first\n' \
-		>"$home/repos.txt"
+	printf '# The codestyle repos
+
+[repo "alpha"]
+	github = example/alpha ; the first
+	note = x
+' \
+		>"$home/repos.gitconfig"
 	run_protect
 	expect_status 0
 	expect_protected example/alpha main
 	expect_output "^protected: alpha develop$"
-}
-
-test_url_that_is_not_on_github_fails() {
-	make_gh
-	make_repo example/beta main develop
-	make_home
-	echo "alpha https://example.com/alpha.git" >>"$home/repos.txt"
-	add_entry example/beta
-	run_protect
-	expect_status 1
-	expect_output "^failed: alpha .*not a GitHub"
-	expect_protected example/beta main
 }
 
 test_rule_set_by_hand_is_turned_off() {
@@ -249,15 +244,6 @@ test_failing_read_of_protection_fails_without_a_change() {
 	expect_output "^failed: alpha main \\(gh: Must have admin rights"
 	[[ "$(writes)" != *"example/alpha main"* ]] || fail "main was changed"
 	expect_protected example/alpha develop
-}
-
-test_manifest_line_without_url_fails() {
-	make_gh
-	make_home
-	echo "alpha" >"$home/repos.txt"
-	run_protect
-	expect_status 1
-	expect_output "^failed: alpha \\(no GitHub URL\\)$"
 }
 
 passed=0

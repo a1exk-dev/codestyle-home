@@ -25,14 +25,14 @@ make_home() {
 	mkdir "$home/scripts"
 	cp "$script" "$home/scripts/drift.sh"
 	printf '%s\n' "$@" >"$home/boilerplate.txt"
-	: >"$home/repos.txt"
+	: >"$home/repos.gitconfig"
 }
 
 # make_clone <name>: a committed clone in the home that holds the standard
 # boilerplate, listed in the manifest.
 make_clone() {
 	local dir="$home/$1"
-	echo "$1 https://github.com/example/$1.git" >>"$home/repos.txt"
+	printf '[repo "%s"]\n\tgithub = example/%s\n' "$1" "$1" >>"$home/repos.gitconfig"
 	mkdir -p "$dir/test" "$dir/.github/workflows" "$dir/lua"
 	echo "run the tests" >"$dir/test/run.lua"
 	echo "how to contribute" >"$dir/CONTRIBUTING.md"
@@ -151,7 +151,7 @@ test_only_language_plugins_are_reported() {
 
 test_plugin_that_is_not_cloned_is_named() {
 	standard_home
-	echo "codestyle-json.nvim https://github.com/example/json.git" >>"$home/repos.txt"
+	printf '[repo "codestyle-json.nvim"]\n\tgithub = example/json\n' >>"$home/repos.gitconfig"
 	run_drift
 	expect_status 0
 	expect_output "^not cloned: codestyle-json.nvim$"
@@ -159,7 +159,7 @@ test_plugin_that_is_not_cloned_is_named() {
 
 test_missing_template_clone_fails() {
 	make_home .github/workflows/ test/run.lua CONTRIBUTING.md
-	echo "$template https://github.com/example/template.git" >>"$home/repos.txt"
+	printf '[repo "%s"]\n\tgithub = example/%s\n' "$template" "$template" >>"$home/repos.gitconfig"
 	make_clone codestyle-json.nvim
 	run_drift
 	expect_status 1
@@ -203,7 +203,7 @@ test_name_that_is_not_a_listed_plugin_fails() {
 	make_clone codestyle-json.nvim
 	run_drift codestyle-jsn.nvim
 	expect_status 2
-	expect_output "codestyle-jsn.nvim is not a Language Plugin in repos.txt"
+	expect_output "codestyle-jsn.nvim is not a Language Plugin in repos.gitconfig"
 }
 
 test_boilerplate_list_comments_and_blank_lines_are_ignored() {

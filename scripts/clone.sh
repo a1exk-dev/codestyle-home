@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Clones each repo in the home's manifest (repos.txt) into a folder of
-# that name at the home root, and fast-forwards each existing clone on its
-# current branch. Skips a clone that has uncommitted changes, a detached
+# Clones each repo in the home's manifest (repos.gitconfig) into a folder
+# of that name at the home root with `gh repo clone`, and fast-forwards
+# each existing clone on its current branch. Skips a clone that has uncommitted changes, a detached
 # HEAD, or a branch that cannot fast-forward, and names it in the summary.
 # Exits non-zero when a clone or pull fails for another reason.
 set -euo pipefail
 
 home="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 
-# sync <dir> <url>: clones or fast-forwards one repo; sets $result.
+# sync <dir> <owner/name>: clones or fast-forwards one repo; sets $result.
 sync() {
-	local dir="$1" url="$2"
+	local dir="$1" github="$2"
 	if [[ ! -e $dir ]]; then
-		git clone -q "$url" "$dir" && result="cloned" || result="failed"
+		gh repo clone "$github" "$dir" -- -q && result="cloned" || result="failed"
 		return
 	fi
 	local git=(git -C "$dir")
@@ -38,13 +38,12 @@ sync() {
 
 summary=()
 status=0
-while read -r line || [[ -n $line ]]; do
-	read -r name url _ <<<"${line%%#*}"
-	[[ -n $name ]] || continue
-	sync "$home/$name" "$url"
+while read -r key github; do
+	name=${key#repo.} && name=${name%.github}
+	sync "$home/$name" "$github"
 	summary+=("$result: $name")
 	[[ $result != failed ]] || status=1
-done <"$home/repos.txt"
+done < <(git config -f "$home/repos.gitconfig" --get-regexp '^repo\..+\.github$')
 
 printf '%s\n' "${summary[@]}"
 exit "$status"

@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-All agent work (wayfinder maps, specs, and `ready-for-agent` or `ready-for-human` issues) lives as GitHub issues in the home tracker, `a1exk-dev/codestyle-home`. The tracker of each repo in `repos.txt` is only for contributors' bug reports and release discussions. Use the `gh` CLI for all operations.
+All agent work (wayfinder maps, specs, and `ready-for-agent` or `ready-for-human` issues) lives as GitHub issues in the home tracker, `a1exk-dev/codestyle-home`. The tracker of each repo in `repos.gitconfig` is only for contributors' bug reports and release discussions. Use the `gh` CLI for all operations.
 
 ## Conventions
 

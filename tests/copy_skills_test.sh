@@ -33,13 +33,13 @@ make_home() {
 	for policy in commit semver changelog domain; do
 		echo "# $policy policy" >"$home/docs/agents/$policy-policy.md"
 	done
-	: >"$home/repos.txt"
+	: >"$home/repos.gitconfig"
 }
 
 # make_clone <name>: a committed clone in the home, listed in the manifest.
 make_clone() {
 	local dir="$home/$1"
-	echo "$1 https://github.com/example/$1.git" >>"$home/repos.txt"
+	printf '[repo "%s"]\n\tgithub = example/%s\n' "$1" "$1" >>"$home/repos.gitconfig"
 	mkdir -p "$dir"
 	echo "$1" >"$dir/README.md"
 	git -C "$dir" init -q
@@ -163,7 +163,7 @@ test_clone_with_uncommitted_changes_is_skipped_and_named() {
 
 test_repo_that_is_not_cloned_is_named() {
 	make_home
-	echo "codestyle.nvim https://github.com/example/codestyle.nvim.git" >>"$home/repos.txt"
+	printf '[repo "codestyle.nvim"]\n\tgithub = example/codestyle.nvim\n' >>"$home/repos.gitconfig"
 	run_copy
 	expect_status 0
 	expect_output "^not cloned: codestyle.nvim$"

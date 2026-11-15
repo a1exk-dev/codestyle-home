@@ -2,8 +2,8 @@
 # Usage: scripts/drift.sh [--diff] [<plugin>...]
 #
 # Reports, for each Language Plugin clone in the home's manifest
-# (repos.txt), or for each named one, the boilerplate files that differ
-# from the template clone: changed, missing or extra. The boilerplate
+# (repos.gitconfig), or for each named one, the boilerplate files that
+# differ from the template clone: changed, missing or extra. The boilerplate
 # files are those that boilerplate.txt lists. With --diff, it also shows
 # each difference. Plugins may differ on purpose, so the report never
 # fails on a difference and changes no file. It exits 1 when the template
@@ -44,22 +44,22 @@ fi
 
 # The Language Plugins in the manifest.
 plugins=()
-while read -r line || [[ -n $line ]]; do
-	read -r name _ <<<"${line%%#*}"
+while read -r key _; do
+	name=${key#repo.} && name=${name%.github}
 	[[ $name == codestyle-*.nvim && $name != "$template" ]] || continue
 	plugins+=("$name")
-done <"$home/repos.txt"
+done < <(git config -f "$home/repos.gitconfig" --get-regexp '^repo\..+\.github$')
 
 for name in "${named[@]}"; do
 	[[ " ${plugins[*]} " == *" ""$name"" "* ]] || {
-		echo "$name is not a Language Plugin in repos.txt" >&2
+		echo "$name is not a Language Plugin in repos.gitconfig" >&2
 		usage
 	}
 done
 ((${#named[@]} == 0)) || plugins=("${named[@]}")
 
 if [[ ! -e $home/$template/.git ]]; then
-	echo "$template is not cloned: add it to repos.txt and run scripts/clone.sh" >&2
+	echo "$template is not cloned: add it to repos.gitconfig and run scripts/clone.sh" >&2
 	exit 1
 fi
 

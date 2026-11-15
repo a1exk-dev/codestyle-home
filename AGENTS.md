@@ -1,11 +1,11 @@
 # codestyle-home
 
-The operator's workspace. Each repo in `repos.txt` is a separate Git repo in a gitignored folder of the same name, filled by `scripts/clone.sh`.
+The operator's workspace. Each repo in `repos.gitconfig` is a separate Git repo in a gitignored folder of the same name, filled by `scripts/clone.sh`.
 
 ## Scope
 
 - Change only the repo that your task names. Each repo folder has its own branches, `AGENTS.md`, and required checks: read its `AGENTS.md` before you change it, and commit and open pull requests in that repo.
-- A change to the home itself (`repos.txt`, `scripts/`, `tests/`, the skills, these docs) goes in a feature branch and a pull request into `main`. The home has no versions, tags, or changelog.
+- A change to the home itself (`repos.gitconfig`, `scripts/`, `tests/`, the skills, these docs) goes in a feature branch and a pull request into `main`. The home has no versions, tags, or changelog.
 
 ## Policies
 

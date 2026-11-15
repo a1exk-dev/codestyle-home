@@ -2,9 +2,9 @@
 # Usage: scripts/copy-skills.sh [--check]
 #
 # Copies the home's process skills (git-commit, semver, common-changelog)
-# and their policies into each clone in the home's manifest (repos.txt),
-# so that each repo follows the same process without the home (home
-# ADR-0006). Each clone gets .agents/skills/<skill>/, a Claude Code link
+# and their policies into each clone in the home's manifest
+# (repos.gitconfig), so that each repo follows the same process without
+# the home (home ADR-0006). Each clone gets .agents/skills/<skill>/, a Claude Code link
 # .claude/skills/<skill>, and docs/agents/<name>-policy.md. It commits
 # nothing: open one pull request per repo with the changes.
 #
@@ -56,9 +56,8 @@ copy() {
 }
 
 status=0
-while read -r line || [[ -n $line ]]; do
-	read -r name _ <<<"${line%%#*}"
-	[[ -n $name ]] || continue
+while read -r key _; do
+	name=${key#repo.} && name=${name%.github}
 	dir="$home/$name"
 	if [[ ! -e $dir/.git ]]; then
 		echo "not cloned: $name"
@@ -77,5 +76,5 @@ while read -r line || [[ -n $line ]]; do
 		copy "$dir"
 		echo "copied: $name"
 	fi
-done <"$home/repos.txt"
+done < <(git config -f "$home/repos.gitconfig" --get-regexp '^repo\..+\.github$')
 exit "$status"

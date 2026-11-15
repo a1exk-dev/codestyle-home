@@ -11,7 +11,7 @@ Read the glossary and ADRs of the repo that your task names, and the home ADRs:
 | The home (cross-repo decisions) | none | `docs/adr/` |
 | The Core | `codestyle.nvim/GLOSSARY.md` | `codestyle.nvim/docs/adr/` |
 
-Read only the ADRs that touch the area you're about to work in. A Language Plugin or the template has no domain glossary of its own: it uses the Core's `GLOSSARY.md`. When a repo joins `repos.txt` with its own glossary or ADRs, add its row here.
+Read only the ADRs that touch the area you're about to work in. A Language Plugin or the template has no domain glossary of its own: it uses the Core's `GLOSSARY.md`. When a repo joins `repos.gitconfig` with its own glossary or ADRs, add its row here.
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
 
