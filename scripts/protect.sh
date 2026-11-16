@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Protects `main` and `develop` on each GitHub repo in the home's manifest
 # (repos.gitconfig) with your `gh` login: each branch requires the five
-# checks of Core ADR-0017, from GitHub Actions, also for admins. Also
-# allows auto-merge and deletes a pull request's branch after its merge,
-# for the operator's pull requests that the Auto-merge workflow merges.
+# checks of Core ADR-0017 and one more for each `check` key in the repo's
+# section, from GitHub Actions, also for admins. Also allows auto-merge
+# and deletes a pull request's branch after its merge, for the
+# operator's pull requests that the Auto-merge workflow merges.
 # Sets only a branch or settings that differ, so it is safe to run again
 # after a repo joins the manifest. Names each repo and branch, or the
 # repo's settings, with "protected", "set", "up to date" or "failed", and
@@ -12,9 +13,9 @@ set -euo pipefail
 
 home="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 
-# The five required checks, by their job names in the Core's CI. The
-# template map (a1exk-dev/codestyle-home#28) decides the template's.
-checks=(
+# The five required checks of every repo, by their job names in the
+# Core's CI. Each `check` key in a repo's section adds one for that repo.
+shared_checks=(
 	"Tests (Neovim v0.11.7)"
 	"Tests (Neovim stable)"
 	"Spell check with typos"
@@ -23,25 +24,27 @@ checks=(
 )
 github_actions=15368
 
-# The request body. A PUT replaces the whole protection, so it states
-# each rule that the endpoint takes, and the comparison below covers each
-# of them.
-protection="$(jq -n --argjson app "$github_actions" '{
-	required_status_checks: {
-		strict: false,
-		checks: [$ARGS.positional[] | {context: ., app_id: $app}]
-	},
-	enforce_admins: true,
-	required_pull_request_reviews: null,
-	restrictions: null,
-	required_linear_history: false,
-	allow_force_pushes: false,
-	allow_deletions: false,
-	block_creations: false,
-	required_conversation_resolution: false,
-	lock_branch: false,
-	allow_fork_syncing: false
-}' --args "${checks[@]}")"
+# body <check>...: the request body that requires these checks. A PUT
+# replaces the whole protection, so it states each rule that the endpoint
+# takes, and the comparison below covers each of them.
+body() {
+	jq -n --argjson app "$github_actions" '{
+		required_status_checks: {
+			strict: false,
+			checks: [$ARGS.positional[] | {context: ., app_id: $app}]
+		},
+		enforce_admins: true,
+		required_pull_request_reviews: null,
+		restrictions: null,
+		required_linear_history: false,
+		allow_force_pushes: false,
+		allow_deletions: false,
+		block_creations: false,
+		required_conversation_resolution: false,
+		lock_branch: false,
+		allow_fork_syncing: false
+	}' --args "$@"
+}
 
 # The rules of a protection that GitHub returns, in the shape of the
 # request body.
@@ -61,10 +64,10 @@ rules='{
 }'
 # sorted: a body with its checks in a stable order, for comparison.
 sorted='.required_status_checks.checks |= (. // [] | sort_by(.context)) | tojson'
-wanted="$(jq -r "$sorted" <<<"$protection")"
 
-# protect <owner/repo> <branch>: sets the protection when it differs;
-# sets $result, and $reason when it fails.
+# protect <owner/repo> <branch>: sets $protection on the branch when its
+# protection differs from $wanted; sets $result, and $reason when it
+# fails.
 protect() {
 	local path="repos/$1/branches/$2" current
 	reason=
@@ -114,6 +117,12 @@ trap 'rm -f "$errors"' EXIT
 status=0
 while read -r key repo; do
 	name=${key#repo.} && name=${name%.github}
+	checks=("${shared_checks[@]}")
+	while IFS= read -r check; do
+		checks+=("$check")
+	done < <(git config -f "$home/repos.gitconfig" --get-all "repo.$name.check" || true)
+	protection="$(body "${checks[@]}")"
+	wanted="$(jq -r "$sorted" <<<"$protection")"
 	for branch in main develop; do
 		protect "$repo" "$branch"
 		echo "$result: $name $branch${reason:+ ($reason)}"

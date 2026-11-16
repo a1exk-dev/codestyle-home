@@ -148,15 +148,15 @@ writes() { cat "$github/writes" 2>/dev/null || true; }
 expect_status() { [[ $status -eq $1 ]] || fail "expected exit $1, got $status"; }
 expect_output() { grep -qE "$1" <<<"$out" || fail "expected output matching: $1"; }
 
-# expect_protected <owner/repo> <branch>: the branch requires the five
-# checks, from GitHub Actions, also for admins.
+# expect_protected <owner/repo> <branch> [<check>...]: the branch requires
+# the five checks and the given ones, from GitHub Actions, also for admins.
 expect_protected() {
 	local file="$github/$1/$2/protection.json"
 	[[ -e $file ]] || fail "$1 $2 is not protected"
 	jq -e --argjson checks "$checks" '
-		([.required_status_checks.checks[].context] | sort) == $checks
+		([.required_status_checks.checks[].context] | sort) == ($checks + $ARGS.positional | sort)
 		and all(.required_status_checks.checks[]; .app_id == 15368)
-		and .enforce_admins.enabled' "$file" >/dev/null ||
+		and .enforce_admins.enabled' "$file" --args "${@:3}" >/dev/null ||
 		fail "$1 $2 has the wrong protection: $(cat "$file")"
 }
 
@@ -178,6 +178,25 @@ test_unprotected_repo_gets_the_five_checks_on_main_and_develop() {
 	expect_protected example/alpha develop
 	expect_output "^protected: alpha main$"
 	expect_output "^protected: alpha develop$"
+}
+
+test_repo_with_a_check_key_gets_six_checks_and_one_without_gets_five() {
+	make_gh
+	make_repo example/alpha main develop
+	make_repo example/codestyle-language-template.nvim main develop
+	make_home example/alpha example/codestyle-language-template.nvim
+	printf '\tcheck = Template self-check\n' >>"$home/repos.gitconfig"
+	run_protect
+	expect_status 0
+	expect_protected example/codestyle-language-template.nvim main "Template self-check"
+	expect_protected example/codestyle-language-template.nvim develop "Template self-check"
+	expect_protected example/alpha main
+	expect_protected example/alpha develop
+	expect_output "^protected: codestyle-language-template.nvim main$"
+	run_protect
+	expect_status 0
+	expect_output "^up to date: codestyle-language-template.nvim main$"
+	expect_output "^up to date: alpha develop$"
 }
 
 test_repo_allows_auto_merge_and_deletes_merged_branches() {
