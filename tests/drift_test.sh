@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Tests for scripts/drift.sh on throwaway Git repos.
 # Each test runs the script as the operator would, in a temporary home
-# with its own manifest, boilerplate list and clones, and checks the
+# with its own manifest, boilerplate keys and clones, and checks the
 # report, the exit code and that no clone changes.
 set -euo pipefail
 
@@ -17,15 +17,16 @@ setup_git() {
 	git config --global init.defaultBranch main
 }
 
-# make_home <boilerplate path>...: a home with the given boilerplate list
-# and an empty manifest.
+# make_home <boilerplate path>...: a home whose manifest has one
+# `boilerplate` key per path in the template's section, and no repo yet.
 make_home() {
 	home="$tmp/home"
 	git init -q "$home"
 	mkdir "$home/scripts"
 	cp "$script" "$home/scripts/drift.sh"
-	printf '%s\n' "$@" >"$home/boilerplate.txt"
-	: >"$home/repos.gitconfig"
+	printf '[repo "%s"]\n' "$template" >"$home/repos.gitconfig"
+	local path
+	for path in "$@"; do printf '\tboilerplate = %s\n' "$path" >>"$home/repos.gitconfig"; done
 }
 
 # make_clone <name>: a committed clone in the home that holds the standard
@@ -44,7 +45,7 @@ make_clone() {
 }
 
 standard_home() {
-	make_home .github/workflows/ test/run.lua CONTRIBUTING.md
+	make_home .github/workflows/ci.yml test/run.lua CONTRIBUTING.md
 	make_clone "$template"
 }
 
@@ -95,14 +96,34 @@ test_missing_file_is_named() {
 	expect_no_output "changed"
 }
 
-test_extra_file_under_a_boilerplate_folder_is_named() {
+test_boilerplate_file_the_template_lacks_is_named() {
+	make_home test/run.lua .github/workflows/release.yml
+	make_clone "$template"
+	make_clone codestyle-json.nvim
+	run_drift
+	expect_status 0
+	expect_output "^not in $template: .github/workflows/release.yml$"
+	expect_output "^clean: codestyle-json.nvim$"
+}
+
+test_boilerplate_file_only_the_plugin_has_is_extra() {
+	make_home test/run.lua .github/workflows/release.yml
+	make_clone "$template"
+	make_clone codestyle-json.nvim
+	echo "release" >"$home/codestyle-json.nvim/.github/workflows/release.yml"
+	run_drift
+	expect_status 0
+	expect_output "^differs: codestyle-json.nvim$"
+	expect_output "^  extra: .github/workflows/release.yml$"
+}
+
+test_files_outside_the_boilerplate_keys_are_ignored_in_a_workflow_folder() {
 	standard_home
 	make_clone codestyle-json.nvim
 	echo "nightly" >"$home/codestyle-json.nvim/.github/workflows/nightly.yml"
 	run_drift
 	expect_status 0
-	expect_output "^differs: codestyle-json.nvim$"
-	expect_output "^  extra: .github/workflows/nightly.yml$"
+	expect_output "^clean: codestyle-json.nvim$"
 }
 
 test_files_outside_the_boilerplate_list_are_ignored() {
@@ -129,7 +150,7 @@ test_report_changes_no_clone() {
 	make_clone codestyle-json.nvim
 	echo "run the json tests" >"$home/codestyle-json.nvim/test/run.lua"
 	git -C "$home/codestyle-json.nvim" rm -q CONTRIBUTING.md
-	echo "nightly" >"$home/codestyle-json.nvim/.github/workflows/nightly.yml"
+	echo "ci nightly" >"$home/codestyle-json.nvim/.github/workflows/ci.yml"
 	local before
 	before="$(snapshot)"
 	run_drift
@@ -158,7 +179,7 @@ test_plugin_that_is_not_cloned_is_named() {
 }
 
 test_missing_template_clone_fails() {
-	make_home .github/workflows/ test/run.lua CONTRIBUTING.md
+	make_home .github/workflows/ci.yml test/run.lua CONTRIBUTING.md
 	printf '[repo "%s"]\n\tgithub = example/%s\n' "$template" "$template" >>"$home/repos.gitconfig"
 	make_clone codestyle-json.nvim
 	run_drift
@@ -171,14 +192,14 @@ test_diff_shows_each_difference() {
 	make_clone codestyle-json.nvim
 	echo "run the json tests" >"$home/codestyle-json.nvim/test/run.lua"
 	git -C "$home/codestyle-json.nvim" rm -q CONTRIBUTING.md
-	echo "nightly" >"$home/codestyle-json.nvim/.github/workflows/nightly.yml"
+	echo "ci nightly" >"$home/codestyle-json.nvim/.github/workflows/ci.yml"
 	run_drift --diff
 	expect_status 0
 	expect_output "^  changed: test/run.lua$"
 	expect_output "^-run the tests$"
 	expect_output "^\\+run the json tests$"
 	expect_output "^-how to contribute$"
-	expect_output "^\\+nightly$"
+	expect_output "^\\+ci nightly$"
 }
 
 test_named_plugins_are_the_only_ones_reported() {
@@ -206,29 +227,27 @@ test_name_that_is_not_a_listed_plugin_fails() {
 	expect_output "codestyle-jsn.nvim is not a Language Plugin in repos.gitconfig"
 }
 
-test_boilerplate_list_comments_and_blank_lines_are_ignored() {
+test_boilerplate_keys_of_other_repos_are_ignored() {
 	standard_home
-	printf '# The boilerplate\n\n  test/run.lua  # the runner\n\n' >"$home/boilerplate.txt"
 	make_clone codestyle-json.nvim
-	echo "other" >"$home/codestyle-json.nvim/CONTRIBUTING.md"
-	echo "run the json tests" >"$home/codestyle-json.nvim/test/run.lua"
+	printf '\tboilerplate = README.md ; not the template\n' >>"$home/repos.gitconfig"
+	echo "other" >"$home/codestyle-json.nvim/README.md"
 	run_drift
 	expect_status 0
-	expect_output "^  changed: test/run.lua$"
-	expect_no_output "CONTRIBUTING"
+	expect_output "^clean: codestyle-json.nvim$"
 }
 
-test_empty_boilerplate_list_fails() {
-	standard_home
-	printf '# nothing yet\n' >"$home/boilerplate.txt"
+test_template_without_boilerplate_keys_fails() {
+	make_home
+	make_clone "$template"
 	make_clone codestyle-json.nvim
 	run_drift
 	expect_status 1
-	expect_output "boilerplate.txt lists no file"
+	expect_output "repos.gitconfig names no boilerplate file of $template"
 }
 
 test_non_ascii_file_name_is_compared() {
-	make_home docs/
+	make_home docs/é.md
 	make_clone "$template"
 	mkdir "$home/$template/docs"
 	echo "same" >"$home/$template/docs/é.md"

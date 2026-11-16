@@ -4,11 +4,12 @@
 # Reports, for each Language Plugin clone in the home's manifest
 # (repos.gitconfig), or for each named one, the boilerplate files that
 # differ from the template clone: changed, missing or extra. The boilerplate
-# files are those that boilerplate.txt lists. With --diff, it also shows
-# each difference. Plugins may differ on purpose, so the report never
-# fails on a difference and changes no file. It exits 1 when the template
-# is not cloned or boilerplate.txt lists no file, and 2 on a wrong
-# argument.
+# files are the `boilerplate` keys of the template's section in
+# repos.gitconfig, and the report first names each one that the template
+# clone lacks. With --diff, it also shows each difference. Plugins may
+# differ on purpose, so the report never fails on a difference and changes
+# no file. It exits 1 when the template is not cloned or has no
+# `boilerplate` key, and 2 on a wrong argument.
 set -euo pipefail
 
 home="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -29,16 +30,13 @@ for arg in "$@"; do
 	esac
 done
 
-# The boilerplate paths, one per line; a path that ends in / covers each
-# file under it.
+# The boilerplate files: the `boilerplate` keys of the template's section.
 paths=()
-while read -r line || [[ -n $line ]]; do
-	read -r path _ <<<"${line%%#*}"
-	[[ -n $path ]] || continue
+while IFS= read -r path; do
 	paths+=("$path")
-done <"$home/boilerplate.txt"
+done < <(git config -f "$home/repos.gitconfig" --get-all "repo.$template.boilerplate" || true)
 if ((${#paths[@]} == 0)); then
-	echo "boilerplate.txt lists no file" >&2
+	echo "repos.gitconfig names no boilerplate file of $template" >&2
 	exit 1
 fi
 
@@ -62,6 +60,12 @@ if [[ ! -e $home/$template/.git ]]; then
 	echo "$template is not cloned: add it to repos.gitconfig and run scripts/clone.sh" >&2
 	exit 1
 fi
+
+# A boilerplate file that the template lacks: a plugin that has it shows
+# it as extra.
+for path in "${paths[@]}"; do
+	[[ -e $home/$template/$path ]] || echo "not in $template: $path"
+done
 
 # list_boilerplate <dir>: the boilerplate files in a clone, tracked or
 # untracked but not ignored, each ended by a NUL byte.

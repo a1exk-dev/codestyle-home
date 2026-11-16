@@ -2,5 +2,30 @@
 # one repo: its name is the folder at the home root, and `github` is the
 # repo on GitHub as owner/name. scripts/clone.sh clones each one into its
 # folder with `gh repo clone`, which uses your gh login and protocol.
+#
+# Each `check` key names one more required check for that repo, by its job
+# name, which scripts/protect.sh adds to the five checks of every repo.
+# Each `boilerplate` key of the template names one file that every
+# Language Plugin keeps as the template has it, which scripts/drift.sh
+# compares in each plugin clone.
 [repo "codestyle.nvim"]
 	github = a1exk-dev/codestyle.nvim
+
+[repo "codestyle-language-template.nvim"]
+	github = a1exk-dev/codestyle-language-template.nvim
+	check = Template self-check
+	boilerplate = .github/workflows/ci.yml
+	boilerplate = .github/workflows/spelling.yml
+	boilerplate = .github/workflows/canary.yml
+	boilerplate = .github/workflows/release.yml
+	boilerplate = .github/workflows/auto-merge.yml
+	boilerplate = .github/scripts/release.sh
+	boilerplate = test/run.lua
+	boilerplate = test/deps.lua
+	boilerplate = CONTRIBUTING.md
+	boilerplate = AGENTS.md
+	boilerplate = CLAUDE.md
+	boilerplate = .gitignore
+	boilerplate = .luarc.json
+	boilerplate = .stylua.toml
+	boilerplate = .typos.toml
