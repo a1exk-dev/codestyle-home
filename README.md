@@ -35,7 +35,7 @@ scripts/drift.sh
 
 For each Language Plugin clone, it lists the boilerplate files that differ from the template clone: changed, missing, or extra. The boilerplate files are the `boilerplate = <path>` keys of the template's section in `repos.gitconfig`, one file per key. The report first names, with `not in codestyle-language-template.nvim`, each of these files that the template clone does not have. Add `--diff` to show each difference, and name plugins to report only those. Plugins may differ on purpose, so the report changes no file and does not fail on a difference. It fails only when the template is not cloned, its section has no `boilerplate` key, or an argument is wrong.
 
-## Protect the branches and turn on auto-merge
+## Protect the branches, turn on auto-merge and set the topics
 
 After a repo joins `repos.gitconfig`, run with your `gh` login:
 
@@ -43,7 +43,7 @@ After a repo joins `repos.gitconfig`, run with your `gh` login:
 scripts/protect.sh
 ```
 
-On each repo in `repos.gitconfig`, `main` and `develop` then require the five checks of Core ADR-0017, plus one check for each `check = <job name>` key in the repo's section, from GitHub Actions, also for admins. The template's section has `check = Template self-check`. The script owns every rule of branch protection: it turns off any other rule set by hand, such as required reviews or linear history. It also allows auto-merge and deletes the branch of a merged pull request on each repo. The script changes only a branch or settings that differ, and names each branch, and each repo's settings, `protected`, `set`, `up to date`, or `failed`. It exits non-zero when a branch failed, for example because the repo has no `develop` yet. It needs `jq`.
+On each repo in `repos.gitconfig`, `main` and `develop` then require the five checks of Core ADR-0017, plus one check for each `check = <job name>` key in the repo's section, from GitHub Actions, also for admins. The template's section has `check = Template self-check`. The script owns every rule of branch protection: it turns off any other rule set by hand, such as required reviews or linear history. It also allows auto-merge and deletes the branch of a merged pull request on each repo. It sets the GitHub topics of each repo, because a template copies no settings: `neovim`, `neovim-plugin`, `lua`, `formatter` and `code-style`, and on each Language Plugin, `codestyle-<id>.nvim`, also `<id>`. These are the full set, so it removes any other topic. The script changes only a branch, settings or topics that differ, and names each branch, and each repo's settings and topics, `protected`, `set`, `up to date`, or `failed`. It exits non-zero when a branch failed, for example because the repo has no `develop` yet. It needs `jq`.
 
 ## Agent setup
 
