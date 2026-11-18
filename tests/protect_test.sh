@@ -27,8 +27,11 @@ make_gh() {
 # Fake `gh api [--method M] repos/<o>/<r>[/branches/<b>[/protection]]
 # [--silent] [--input -] [--jq <filter>]`. A file `fail` in a branch
 # folder makes each GET of its protection fail with that file's text,
-# and a file `fail` in a repo folder makes each GET of the repo fail.
-# The repo's settings are in `settings.json` in its folder.
+# a file `fail` in a repo folder makes each GET of the repo fail, a
+# file `fail-topics` there makes each GET of its topics fail, and a file
+# `fail-topics-put` there makes each PUT of its topics fail.
+# The repo's settings are in `settings.json` in its folder, and its
+# topics in `topics.json`.
 set -euo pipefail
 [[ $1 == api ]] || exit 99
 shift
@@ -64,6 +67,33 @@ if [[ $path =~ ^repos/([^/]+/[^/]+)$ ]]; then
 		jq -s '.[0] * .[1]' "$dir/settings.json" - >"$dir/settings.new"
 		mv "$dir/settings.new" "$dir/settings.json"
 		echo "${BASH_REMATCH[1]} settings" >>"$FAKE_GITHUB/writes"
+		;;
+	*) exit 99 ;;
+	esac
+	exit 0
+fi
+if [[ $path =~ ^repos/([^/]+/[^/]+)/topics$ ]]; then
+	dir="$FAKE_GITHUB/${BASH_REMATCH[1]}"
+	if [[ ! -d $dir ]]; then
+		echo "gh: Not Found (HTTP 404)" >&2
+		exit 1
+	fi
+	[[ -e $dir/topics.json ]] || echo '{"names":[]}' >"$dir/topics.json"
+	case $method in
+	GET)
+		if [[ -e $dir/fail-topics ]]; then
+			cat "$dir/fail-topics" >&2
+			exit 1
+		fi
+		jq "$filter" "$dir/topics.json"
+		;;
+	PUT)
+		if [[ -e $dir/fail-topics-put ]]; then
+			cat "$dir/fail-topics-put" >&2
+			exit 1
+		fi
+		jq '{names}' >"$dir/topics.json"
+		echo "${BASH_REMATCH[1]} topics" >>"$FAKE_GITHUB/writes"
 		;;
 	*) exit 99 ;;
 	esac
@@ -209,6 +239,97 @@ test_repo_allows_auto_merge_and_deletes_merged_branches() {
 	expect_output "^set: alpha settings$"
 }
 
+# expect_topics <owner/repo> <topic>...: the repo has exactly these topics.
+expect_topics() {
+	local file="$github/$1/topics.json"
+	jq -e '(.names | sort) == ($ARGS.positional | sort)' "$file" --args "${@:2}" >/dev/null 2>&1 ||
+		fail "$1 has the wrong topics: $(cat "$file" 2>/dev/null)"
+}
+
+test_repo_with_no_topics_gets_the_five_topics() {
+	make_gh
+	make_repo example/codestyle.nvim main develop
+	make_home example/codestyle.nvim
+	run_protect
+	expect_status 0
+	expect_topics example/codestyle.nvim neovim neovim-plugin lua formatter code-style
+	expect_output "^set: codestyle.nvim topics$"
+}
+
+test_repo_with_the_full_set_of_topics_gets_no_request() {
+	make_gh
+	make_repo example/codestyle.nvim main develop
+	make_home example/codestyle.nvim
+	echo '{"names":["lua","code-style","neovim","formatter","neovim-plugin"]}' \
+		>"$github/example/codestyle.nvim/topics.json"
+	run_protect
+	expect_status 0
+	[[ "$(writes)" != *"example/codestyle.nvim topics"* ]] || fail "the topics were changed"
+	expect_output "^up to date: codestyle.nvim topics$"
+}
+
+test_topic_added_by_hand_is_removed() {
+	make_gh
+	make_repo example/codestyle.nvim main develop
+	make_home example/codestyle.nvim
+	echo '{"names":["neovim","neovim-plugin","lua","formatter","code-style","vim"]}' \
+		>"$github/example/codestyle.nvim/topics.json"
+	run_protect
+	expect_status 0
+	expect_topics example/codestyle.nvim neovim neovim-plugin lua formatter code-style
+	expect_output "^set: codestyle.nvim topics$"
+}
+
+test_language_plugin_also_gets_its_language_and_the_template_does_not() {
+	make_gh
+	make_repo example/codestyle-php.nvim main develop
+	make_repo example/codestyle-language-template.nvim main develop
+	make_home example/codestyle-php.nvim example/codestyle-language-template.nvim
+	run_protect
+	expect_status 0
+	expect_topics example/codestyle-php.nvim neovim neovim-plugin lua formatter code-style php
+	expect_topics example/codestyle-language-template.nvim neovim neovim-plugin lua formatter code-style
+	expect_output "^set: codestyle-php.nvim topics$"
+	expect_output "^set: codestyle-language-template.nvim topics$"
+}
+
+test_underscore_in_the_language_becomes_a_hyphen_in_its_topic() {
+	make_gh
+	make_repo example/codestyle-shell_script.nvim main develop
+	make_home example/codestyle-shell_script.nvim
+	run_protect
+	expect_status 0
+	expect_topics example/codestyle-shell_script.nvim neovim neovim-plugin lua formatter code-style shell-script
+	expect_output "^set: codestyle-shell_script.nvim topics$"
+}
+
+test_failing_read_of_topics_fails_without_a_change() {
+	make_gh
+	make_repo example/alpha main develop
+	make_repo example/beta main develop
+	make_home example/alpha example/beta
+	echo "gh: Must have admin rights to Repository. (HTTP 403)" >"$github/example/alpha/fail-topics"
+	run_protect
+	expect_status 1
+	expect_output "^failed: alpha topics \\(gh: Must have admin rights"
+	[[ "$(writes)" != *"example/alpha topics"* ]] || fail "the topics were changed"
+	expect_topics example/beta neovim neovim-plugin lua formatter code-style
+}
+
+test_failing_write_of_topics_fails_after_the_other_repos() {
+	make_gh
+	make_repo example/alpha main develop
+	make_repo example/beta main develop
+	make_home example/alpha example/beta
+	echo "gh: Validation Failed (HTTP 422)" >"$github/example/alpha/fail-topics-put"
+	run_protect
+	expect_status 1
+	expect_output "^failed: alpha topics \\(gh: Validation Failed"
+	expect_topics example/alpha
+	expect_topics example/beta neovim neovim-plugin lua formatter code-style
+	expect_output "^set: beta topics$"
+}
+
 test_settings_changed_by_hand_are_set_again() {
 	make_gh
 	make_repo example/alpha main develop
@@ -247,6 +368,7 @@ test_second_run_changes_nothing() {
 	expect_status 0
 	[[ "$(writes)" == "$before" ]] || fail "the second run changed protection or settings"
 	expect_output "^up to date: alpha settings$"
+	expect_output "^up to date: alpha topics$"
 	expect_output "^up to date: alpha main$"
 	expect_output "^up to date: alpha develop$"
 }

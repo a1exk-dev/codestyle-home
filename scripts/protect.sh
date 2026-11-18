@@ -4,11 +4,12 @@
 # checks of Core ADR-0017 and one more for each `check` key in the repo's
 # section, from GitHub Actions, also for admins. Also allows auto-merge
 # and deletes a pull request's branch after its merge, for the
-# operator's pull requests that the Auto-merge workflow merges.
-# Sets only a branch or settings that differ, so it is safe to run again
-# after a repo joins the manifest. Names each repo and branch, or the
-# repo's settings, with "protected", "set", "up to date" or "failed", and
-# exits non-zero when one failed, after the others.
+# operator's pull requests that the Auto-merge workflow merges, and sets
+# the repo's GitHub topics, as a template copies no settings.
+# Sets only a branch, settings or topics that differ, so it is safe to run
+# again after a repo joins the manifest. Names each repo and branch, or the
+# repo's settings or topics, with "protected", "set", "up to date" or
+# "failed", and exits non-zero when one failed, after the others.
 set -euo pipefail
 
 home="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -111,6 +112,39 @@ configure() {
 	fi
 }
 
+# The GitHub topics of every repo. A Language Plugin,
+# `codestyle-<id>.nvim` on GitHub, also gets its language, `<id>` with
+# each `_` turned into `-`, as a topic takes no `_`; the Core and the
+# template get none.
+shared_topics=(neovim neovim-plugin lua formatter code-style)
+template=codestyle-language-template.nvim
+
+# tag <owner/repo> <topic>...: sets these topics as the repo's full set
+# when its topics differ; sets $result, and $reason when it fails.
+tag() {
+	local path="repos/$1/topics" current wanted
+	shift
+	reason=
+	wanted="$(jq -cn '$ARGS.positional | sort' --args "$@")"
+	if ! current="$(gh api "$path" --jq '.names | sort' 2>"$errors" </dev/null)"; then
+		result="failed" reason="$(<"$errors")"
+	elif [[ "$(jq -c . <<<"$current")" == "$wanted" ]]; then
+		result="up to date"
+	elif reason="$(jq -c '{names: .}' <<<"$wanted" |
+		gh api --method PUT "$path" --input - 2>&1 >/dev/null)"; then
+		result="set"
+	else
+		result="failed"
+	fi
+}
+
+# report <what>: prints $result for <what> of the repo $name, with
+# $reason when there is one, and sets $status when it failed.
+report() {
+	echo "$result: $name $1${reason:+ ($reason)}"
+	[[ $result != failed ]] || status=1
+}
+
 errors="$(mktemp)"
 trap 'rm -f "$errors"' EXIT
 
@@ -125,11 +159,14 @@ while read -r key repo; do
 	wanted="$(jq -r "$sorted" <<<"$protection")"
 	for branch in main develop; do
 		protect "$repo" "$branch"
-		echo "$result: $name $branch${reason:+ ($reason)}"
-		[[ $result != failed ]] || status=1
+		report "$branch"
 	done
 	configure "$repo"
-	echo "$result: $name settings${reason:+ ($reason)}"
-	[[ $result != failed ]] || status=1
+	report settings
+	topics=("${shared_topics[@]}")
+	slug=${repo#*/} && id=${slug#codestyle-} && id=${id%.nvim}
+	[[ $slug != codestyle-?*.nvim || $slug == "$template" ]] || topics+=("${id//_/-}")
+	tag "$repo" "${topics[@]}"
+	report topics
 done < <(git config -f "$home/repos.gitconfig" --get-regexp '^repo\..+\.github$')
 exit "$status"
