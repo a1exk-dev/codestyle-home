@@ -113,8 +113,9 @@ configure() {
 }
 
 # The GitHub topics of every repo. A Language Plugin,
-# `codestyle-<id>.nvim` on GitHub, also gets its language, `<id>`; the
-# Core and the template get none.
+# `codestyle-<id>.nvim` on GitHub, also gets its language, `<id>` with
+# each `_` turned into `-`, as a topic takes no `_`; the Core and the
+# template get none.
 shared_topics=(neovim neovim-plugin lua formatter code-style)
 template=codestyle-language-template.nvim
 
@@ -159,7 +160,7 @@ while read -r key repo; do
 	[[ $result != failed ]] || status=1
 	topics=("${shared_topics[@]}")
 	slug=${repo#*/} && id=${slug#codestyle-} && id=${id%.nvim}
-	[[ $slug != codestyle-?*.nvim || $slug == "$template" ]] || topics+=("$id")
+	[[ $slug != codestyle-?*.nvim || $slug == "$template" ]] || topics+=("${id//_/-}")
 	tag "$repo" "${topics[@]}"
 	echo "$result: $name topics${reason:+ ($reason)}"
 	[[ $result != failed ]] || status=1

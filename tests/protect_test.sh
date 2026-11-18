@@ -288,6 +288,16 @@ test_language_plugin_also_gets_its_language_and_the_template_does_not() {
 	expect_output "^set: codestyle-language-template.nvim topics$"
 }
 
+test_underscore_in_the_language_becomes_a_hyphen_in_its_topic() {
+	make_gh
+	make_repo example/codestyle-shell_script.nvim main develop
+	make_home example/codestyle-shell_script.nvim
+	run_protect
+	expect_status 0
+	expect_topics example/codestyle-shell_script.nvim neovim neovim-plugin lua formatter code-style shell-script
+	expect_output "^set: codestyle-shell_script.nvim topics$"
+}
+
 test_failing_read_of_topics_fails_without_a_change() {
 	make_gh
 	make_repo example/alpha main develop
