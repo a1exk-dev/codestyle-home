@@ -27,8 +27,9 @@ make_gh() {
 # Fake `gh api [--method M] repos/<o>/<r>[/branches/<b>[/protection]]
 # [--silent] [--input -] [--jq <filter>]`. A file `fail` in a branch
 # folder makes each GET of its protection fail with that file's text,
-# a file `fail` in a repo folder makes each GET of the repo fail, and a
-# file `fail-topics` there makes each GET of its topics fail.
+# a file `fail` in a repo folder makes each GET of the repo fail, a
+# file `fail-topics` there makes each GET of its topics fail, and a file
+# `fail-topics-put` there makes each PUT of its topics fail.
 # The repo's settings are in `settings.json` in its folder, and its
 # topics in `topics.json`.
 set -euo pipefail
@@ -87,6 +88,10 @@ if [[ $path =~ ^repos/([^/]+/[^/]+)/topics$ ]]; then
 		jq "$filter" "$dir/topics.json"
 		;;
 	PUT)
+		if [[ -e $dir/fail-topics-put ]]; then
+			cat "$dir/fail-topics-put" >&2
+			exit 1
+		fi
 		jq '{names}' >"$dir/topics.json"
 		echo "${BASH_REMATCH[1]} topics" >>"$FAKE_GITHUB/writes"
 		;;
@@ -309,6 +314,20 @@ test_failing_read_of_topics_fails_without_a_change() {
 	expect_output "^failed: alpha topics \\(gh: Must have admin rights"
 	[[ "$(writes)" != *"example/alpha topics"* ]] || fail "the topics were changed"
 	expect_topics example/beta neovim neovim-plugin lua formatter code-style
+}
+
+test_failing_write_of_topics_fails_after_the_other_repos() {
+	make_gh
+	make_repo example/alpha main develop
+	make_repo example/beta main develop
+	make_home example/alpha example/beta
+	echo "gh: Validation Failed (HTTP 422)" >"$github/example/alpha/fail-topics-put"
+	run_protect
+	expect_status 1
+	expect_output "^failed: alpha topics \\(gh: Validation Failed"
+	expect_topics example/alpha
+	expect_topics example/beta neovim neovim-plugin lua formatter code-style
+	expect_output "^set: beta topics$"
 }
 
 test_settings_changed_by_hand_are_set_again() {
