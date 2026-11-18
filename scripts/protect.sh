@@ -138,6 +138,13 @@ tag() {
 	fi
 }
 
+# report <what>: prints $result for <what> of the repo $name, with
+# $reason when there is one, and sets $status when it failed.
+report() {
+	echo "$result: $name $1${reason:+ ($reason)}"
+	[[ $result != failed ]] || status=1
+}
+
 errors="$(mktemp)"
 trap 'rm -f "$errors"' EXIT
 
@@ -152,17 +159,14 @@ while read -r key repo; do
 	wanted="$(jq -r "$sorted" <<<"$protection")"
 	for branch in main develop; do
 		protect "$repo" "$branch"
-		echo "$result: $name $branch${reason:+ ($reason)}"
-		[[ $result != failed ]] || status=1
+		report "$branch"
 	done
 	configure "$repo"
-	echo "$result: $name settings${reason:+ ($reason)}"
-	[[ $result != failed ]] || status=1
+	report settings
 	topics=("${shared_topics[@]}")
 	slug=${repo#*/} && id=${slug#codestyle-} && id=${id%.nvim}
 	[[ $slug != codestyle-?*.nvim || $slug == "$template" ]] || topics+=("${id//_/-}")
 	tag "$repo" "${topics[@]}"
-	echo "$result: $name topics${reason:+ ($reason)}"
-	[[ $result != failed ]] || status=1
+	report topics
 done < <(git config -f "$home/repos.gitconfig" --get-regexp '^repo\..+\.github$')
 exit "$status"
